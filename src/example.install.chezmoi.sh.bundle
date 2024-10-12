@@ -1,0 +1,377 @@
+#!/bin/bash
+
+################################################################################
+#  File:  example.install.chezmoi.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+set -o errexit      # Exit on error
+set -o pipefail     # Pipeline fails if any command fails
+set -o noclobber    # Prevent overwriting files
+set -o nounset      # Error on using unset variables
+set -o allexport    # Export all variables automatically
+### Configuration
+
+#### Package Information
+readonly githubRepository='twpayne/chezmoi'
+readonly binaryName='chezmoi'
+readonly versionArgument='--version'
+readonly downloadUrlTemplate='https://github.com/${githubRepository}/releases/download/v${version}/${name}_${version}_linux_${architecture}.tar.gz'
+#### Installation Information
+readonly binaryTargetFolder='/usr/local/bin'
+readonly name="${githubRepository##*/}"
+
+
+################################################################################
+#  File:  ./functions/check_curl_envsubst_file_tar_installed.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+
+
+################################################################################
+#  File:  functions/apt_get_update.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+# Updates the apt-get package list if it is empty
+apt_get_update() {
+    if [ "$(find /var/lib/apt/lists/* | wc -l)" = "0" ]; then
+        echo "Running apt-get update..."
+        apt-get update -y
+    fi
+}
+
+
+################################################################################
+#  End File:  functions/apt_get_update.sh
+################################################################################
+
+
+
+
+################################################################################
+#  File:  functions/apt_get_checkinstall.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+
+
+################################################################################
+#  File:  functions/apt_get_update.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+# Updates the apt-get package list if it is empty
+apt_get_update() {
+    if [ "$(find /var/lib/apt/lists/* | wc -l)" = "0" ]; then
+        echo "Running apt-get update..."
+        apt-get update -y
+    fi
+}
+
+
+################################################################################
+#  End File:  functions/apt_get_update.sh
+################################################################################
+
+
+# Checks if packages are installed and installs them if not
+apt_get_checkinstall() {
+    if ! dpkg -s "$@" >/dev/null  2>&1; then
+        apt_get_update
+        DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends --no-install-suggests --option 'Debug::pkgProblemResolver=true' --option 'Debug::pkgAcquire::Worker=1' "$@"
+    fi
+}
+
+
+################################################################################
+#  End File:  functions/apt_get_checkinstall.sh
+################################################################################
+
+
+
+
+################################################################################
+#  File:  functions/apt_get_cleanup.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+# Cleans up the apt-get cache
+apt_get_cleanup() {
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+}
+
+
+################################################################################
+#  End File:  functions/apt_get_cleanup.sh
+################################################################################
+
+
+# Checks if curl and ca-certificates are installed and installs those if not
+check_curl_envsubst_file_tar_installed() {
+    declare -a requiredAptPackagesMissing=()
+    if ! [ -r '/etc/ssl/certs/ca-certificates.crt' ]; then
+        requiredAptPackagesMissing+=('ca-certificates')
+    fi
+
+    if ! command -v curl >/dev/null 2>&1; then
+        requiredAptPackagesMissing+=('curl')
+    fi
+
+    if ! command -v envsubst >/dev/null 2>&1; then
+        requiredAptPackagesMissing+=('gettext-base')
+    fi
+
+    if ! command -v file >/dev/null 2>&1; then
+        requiredAptPackagesMissing+=('file')
+    fi
+
+    if ! command -v tar >/dev/null 2>&1; then
+        requiredAptPackagesMissing+=('tar')
+    fi
+
+    declare -i requiredAptPackagesMissingCount=${#requiredAptPackagesMissing[@]}
+    if [ $requiredAptPackagesMissingCount -gt 0 ]; then
+        apt_get_update
+        apt_get_checkinstall "${requiredAptPackagesMissing[@]}"
+        apt_get_cleanup
+    fi
+}
+
+
+################################################################################
+#  End File:  ./functions/check_curl_envsubst_file_tar_installed.sh
+################################################################################
+
+
+
+
+################################################################################
+#  File:  ./functions/curl_check_url.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+curl_check_url() {
+    local url=$1
+    local status_code
+    status_code=$(curl -s -o /dev/null -w '%{http_code}' "$url")
+    # check for 200, 302
+    if [ "$status_code" -ne 200 ] && [ "$status_code" -ne 302 ]; then
+        echo "Failed to download '$url'. Status code: $status_code."
+        return 1
+    fi
+}
+
+
+################################################################################
+#  End File:  ./functions/curl_check_url.sh
+################################################################################
+
+
+
+
+################################################################################
+#  File:  ./functions/curl_download_untar.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+
+
+################################################################################
+#  File:  functions/curl_download_stdout.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+curl_download_stdout() {
+    local url=$1
+    curl \
+        --silent \
+        --location \
+        --output '-' \
+        --connect-timeout 5 \
+        "${url}"
+}
+
+
+################################################################################
+#  End File:  functions/curl_download_stdout.sh
+################################################################################
+
+
+curl_download_untar() {
+    local url=$1
+    local strip=$2
+    local target=$3
+    local bin_path=$4
+    curl_download_stdout "${url}" | tar \
+        -xz \
+        -f '-' \
+        --strip-components="${strip}" \
+        -C "${target}" \
+        "${bin_path}"
+}
+
+
+################################################################################
+#  End File:  ./functions/curl_download_untar.sh
+################################################################################
+
+
+
+
+################################################################################
+#  File:  ./functions/debian_get_arch.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+debian_get_arch() {
+    echo "$(dpkg --print-architecture)"
+}
+
+
+################################################################################
+#  End File:  ./functions/debian_get_arch.sh
+################################################################################
+
+
+
+
+################################################################################
+#  File:  ./functions/echo_banner.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+echo_banner() {
+    local text="$1"
+    # ANSI codes: \e[1m -> Bold, \e[97m -> Bright white, \e[41m -> Red background, \e[0m -> Reset
+    echo -e "\e[1m\e[97m\e[41m${text}\e[0m"
+}
+
+
+################################################################################
+#  End File:  ./functions/echo_banner.sh
+################################################################################
+
+
+
+
+################################################################################
+#  File:  ./functions/github_get_latest_release.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+
+
+################################################################################
+#  File:  functions/github_list_releases.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+github_list_releases() {
+    if [ -z "$1" ]; then
+        echo "Usage: list_github_releases <owner/repo>"
+        return 1
+    fi
+
+    # GitHub API URL to list releases for the given repository
+    local repo="$1"
+    local url="https://api.github.com/repos/$repo/releases"
+
+    # Get the release data from the GitHub API, extract the version tags (X.Y.Z format)
+    curl -s "$url" | grep -Po '"tag_name": "\K.*?(?=")' | grep -E '^v?[0-9]+\.[0-9]+\.[0-9]+$' | sed 's/^v//'
+}
+
+
+################################################################################
+#  End File:  functions/github_list_releases.sh
+################################################################################
+
+
+github_get_latest_release() {
+    if [ -z "$1" ]; then
+        echo "Usage: get_latest_github_release <owner/repo>"
+        return 1
+    fi
+
+    # Get the latest release version for the given repository
+    github_list_releases "$1" | head -n 1
+}
+
+
+################################################################################
+#  End File:  ./functions/github_get_latest_release.sh
+################################################################################
+
+
+
+
+################################################################################
+#  File:  ./functions/utils_check_version.sh
+#  Bundle Date: 2024-10-12 11:55:9
+################################################################################
+
+
+utils_check_version() {
+    local version=$1
+    if ! [[ "${version:-}" =~ ^(latest|[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+        printf >&2 '=== [ERROR] Option "version" (value: "%s") is not "latest" or valid semantic version format "X.Y.Z" !\n' \
+            "${version}"
+        exit 1
+    fi
+}
+
+
+################################################################################
+#  End File:  ./functions/utils_check_version.sh
+################################################################################
+
+
+install() {
+    utils_check_version "${VERSION}"
+    check_curl_envsubst_file_tar_installed
+
+    readonly architecture="$(debian_get_arch)"
+    readonly binaryTargetPathTemplate='${binaryTargetFolder}/${binaryName}'
+
+    if [ "${VERSION}" == 'latest' ] || [ -z "${VERSION}" ]; then
+        VERSION=$(github_get_latest_release "${githubRepository}")
+    fi
+
+    readonly version="${VERSION:?}"
+    readonly downloadUrl="$(echo -n "${downloadUrlTemplate}" | envsubst)"
+
+    curl_check_url "${downloadUrl}"
+
+    readonly binaryPathInArchive="${binaryName}"
+    readonly stripComponents="$(echo -n "${binaryPathInArchive}" | awk -F'/' '{print NF-1}')"
+    readonly binaryTargetPath="$(echo -n "${binaryTargetPathTemplate}" | envsubst)"
+
+    curl_download_untar "${downloadUrl}" "${stripComponents}" "${binaryTargetFolder}" "${binaryPathInArchive}"
+    chmod 755 "${binaryTargetPath}"
+}
+echo_banner "devcontainer.community"
+echo "Installing ${name}..."
+install "$@"
+echo "(*) Done!"
+
+
+################################################################################
+#  End File:  example.install.chezmoi.sh
+################################################################################
+
+

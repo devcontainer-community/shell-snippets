@@ -1,64 +1,3 @@
-# devcontainer.community: Shell Snippets
-
-> A collection of shell snippets for frequently used commands in `install.sh` scripts for devcontainer features.
-
-
-## Examples
-
-### Install an `apt` package, and cleanup
-
-```bash
-apt_get_checkinstall git
-apt_get_clean
-```
-
-To use this snippet, use the functions defined in `src/functions/apt_get_checkinstall.sh`, `src/functions/apt_get_update`, and `src/functions/apt_get_clean.sh`:
-
-```bash
-apt_get_update()
-{
-    if [ "$(find /var/lib/apt/lists/* | wc -l)" = "0" ]; then
-        echo "Running apt-get update..."
-        apt-get update -y
-    fi
-}
-
-apt_get_checkinstall() {
-    if ! dpkg -s "$@" > /dev/null 2>&1; then
-        apt_get_update
-        DEBIAN_FRONTEND=noninteractive apt-get -y install --no-install-recommends --no-install-suggests --option 'Debug::pkgProblemResolver=true' --option 'Debug::pkgAcquire::Worker=1' "$@"
-    fi
-}
-
-apt_get_cleanup() {
-    apt-get clean
-    rm -rf /var/lib/apt/lists/*
-}
-```
-
-### Bundling install scripts
-
-The functions defined in `src/functions/*.sh` can be bundled into a single script.
-All of those functions use the `source` command to reference other scripts.
-
-We can use [bash_bundler](https://github.com/malscent/bash_bundler) to bundle all the scripts into a single file.
-
-Here is an example script:
-
-```bash
-source functions/echo_banner.sh
-echo_banner "devcontainer.community"
-```
-
-To bundle this script, run the following command:
-
-```sh
-bash_bundler bundle -e example_script.sh -o bundle.example_script.sh
-```
-
-A full example for an `install.sh` script that installs [chezmoi](https://github.com/twpayne/chezmoi) from GitHub releases is given in `src/examples/example.install.chezmoi.sh`:
-
-```bash
 #!/usr/bin/env -S bash --noprofile --norc
 
 
@@ -119,4 +58,3 @@ echo_banner "devcontainer.community"
 echo "Installing ${name}..."
 install "$@"
 echo "(*) Done!"
-```
